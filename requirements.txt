@@ -1,0 +1,6 @@
+streamlit
+rembg
+pillow
+supabase
+google-generativeai
+pydantic

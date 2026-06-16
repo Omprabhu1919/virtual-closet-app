@@ -1,0 +1,110 @@
+import streamlit as st
+from rembg import remove
+from PIL import Image
+import io
+from supabase import create_client
+import google.generativeai as genai
+from pydantic import BaseModel
+import json
+
+# 1. Initialize API Connections via Streamlit Secrets
+try:
+    supabase = create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
+    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+except Exception as e:
+    st.error("Configuration error. Please check that your Streamlit Secrets are correctly filled.")
+
+# 2. Prevent RAM Crashes by Caching the Background Removal Engine
+@st.cache_resource
+def get_rembg_session():
+    import rembg
+    return rembg.new_session()
+
+# 3. Enforce Strict Output Format for Gemini
+class ClothingMetadata(BaseModel):
+    category: str
+    color: str
+    style: str
+
+# 4. Streamlit User Interface Setup
+st.set_page_config(page_title="Cloud Wardrobe", layout="centered")
+st.title("👗 My Cloud Wardrobe")
+st.write("Upload an item to remove its background, auto-tag it with AI, and sync it to your cloud storage.")
+
+# File Uploader Widget
+uploaded_file = st.file_uploader("Snap or upload a photo of your clothing item", type=["jpg", "png", "jpeg"])
+
+if uploaded_file is not None:
+    # Display processing status to the user
+    status_box = st.empty()
+    
+    # Load and downscale image to stay within Supabase's free storage tier limits
+    status_box.info("⚡ Compressing image to save cloud space...")
+    raw_img = Image.open(uploaded_file)
+    raw_img.thumbnail((800, 800)) 
+    
+    try:
+        # Background Removal
+        status_box.info("✂️ Extracting clothing item from background...")
+        session = get_rembg_session()
+        clean_img = remove(raw_img, session=session)
+        
+        # Prepare the processed image as byte data
+        img_byte_arr = io.BytesIO()
+        clean_img.save(img_byte_arr, format='PNG')
+        img_bytes = img_byte_arr.getvalue()
+        
+        # Send clean image to Gemini to get exact structural attributes
+        status_box.info("🤖 AI is analyzing features and color schemas...")
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        
+        generation_config = {
+            "response_mime_type": "application/json",
+            "response_schema": ClothingMetadata
+        }
+        
+        response = model.generate_content(
+            ["Analyze this clothing item precisely.", clean_img],
+            generation_config=generation_config
+        )
+        
+        # Extract metadata metrics from the validated JSON structure
+        metadata = json.loads(response.text)
+        
+        # Save assets directly to Supabase cloud environment
+        status_box.info("☁️ Syncing assets to Supabase storage bucket...")
+        file_name = f"{uploaded_file.name.split('.')[0]}_processed.png"
+        
+        # Upload processing
+        supabase.storage.from_("wardrobe").upload(
+            file_name, 
+            img_bytes, 
+            file_options={"content-type": "image/png"}
+        )
+        public_url = supabase.storage.from_("wardrobe").get_public_url(file_name)
+        
+        # Insert metadata log into database table
+        db_data = {
+            "category": metadata["category"],
+            "color": metadata["color"],
+            "style": metadata["style"],
+            "image_url": public_url
+        }
+        supabase.table("clothes").insert(db_data).execute()
+        
+        # Final Success UI
+        status_box.empty()
+        st.success("🎉 Item processing complete! Added directly to cloud closet.")
+        
+        # Show breakdown of the newly cataloged item
+        col1, col2 = st.columns(2)
+        with col1:
+            st.image(clean_img, caption="Processed Cutout")
+        with col2:
+            st.markdown(f"**Category:** {metadata['category'].title()}")
+            st.markdown(f"**Color Profile:** {metadata['color'].title()}")
+            st.markdown(f"**Style Tag:** {metadata['style'].title()}")
+            
+    except Exception as error:
+        status_box.empty()
+        st.error(f"Execution failed: {str(error)}")
