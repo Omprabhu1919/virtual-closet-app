@@ -62,7 +62,7 @@ def upload_to_supabase(client, file_bytes: bytes, original_filename: str) -> str
     return url_result
 
 # 5. UI
-st.title("👗 My Cloud Wardrobe")
+st.title(" My Cloud Wardrobe")
 st.write("Upload an item to auto-tag it with AI and sync it to your cloud storage.")
 
 uploaded_file = st.file_uploader("Snap or upload a photo of your clothing item", type=["jpg", "png", "jpeg"])
@@ -83,7 +83,7 @@ if uploaded_file is not None:
         img_bytes = img_byte_arr.getvalue()
 
         status_box.info("🤖 AI is analyzing features and color schemas...")
-        model = genai.GenerativeModel("gemini-2.0-flash")
+        model = genai.GenerativeModel("gemini-1.5-flash")
         metadata = classify_clothing(model, raw_img.convert("RGB"))
 
         status_box.info("☁️ Syncing assets to Supabase storage bucket...")
