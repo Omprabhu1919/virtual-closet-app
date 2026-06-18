@@ -21,10 +21,18 @@ Required packages (requirements.txt):
 import io
 import json
 import uuid
+import os
+os.environ["OMP_NUM_THREADS"] = "1"
 
 import streamlit as st
 from PIL import Image
 from pydantic import BaseModel
+
+# The rest of your existing code starts here
+import io
+import json
+import uuid
+# ...
 
 # ---------------------------------------------------------------------------
 # 1. Page config MUST be the first Streamlit call
