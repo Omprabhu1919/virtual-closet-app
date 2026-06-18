@@ -76,7 +76,7 @@ except Exception as e:
 @st.cache_resource
 def get_rembg_session():
     import rembg
-    return rembg.new_session()
+    return rembg.new_session("u2netp")
 
 
 # ---------------------------------------------------------------------------
@@ -145,7 +145,7 @@ def upload_to_supabase(client, file_bytes: bytes, original_filename: str) -> str
 # ---------------------------------------------------------------------------
 # 6. UI
 # ---------------------------------------------------------------------------
-st.title("👗 My Cloud Wardrobe")
+st.title(" My Cloud Wardrobe")
 st.write("Upload an item to remove its background, auto-tag it with AI, and sync it to your cloud storage.")
 
 uploaded_file = st.file_uploader("Snap or upload a photo of your clothing item", type=["jpg", "png", "jpeg"])
